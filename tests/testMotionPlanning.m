@@ -13,6 +13,8 @@ function testGeneratedTerrainShape(testCase)
 cfg = motionplanning.config.defaultConfig();
 cfg.environment.gridResolution = 20;
 cfg.environment.domainSize = 30;
+cfg.environment.topologyFeatureCount = 6;
+cfg.environment.maxTerrainHeight = 20;
 
 terrain = motionplanning.environment.generateVoxelTerrain(cfg.environment);
 
@@ -24,6 +26,17 @@ verifyEqual(testCase, terrain.maxX, 30);
 verifyEqual(testCase, terrain.maxY, 30);
 verifySize(testCase, terrain.xVec, [1, 20]);
 verifySize(testCase, terrain.yVec, [1, 20]);
+verifyLessThanOrEqual(testCase, max(terrain.Z(:)), cfg.environment.maxTerrainHeight + cfg.environment.blockHeight);
+end
+
+function testDefaultEnvironmentIsLargeAndUnguided(testCase)
+cfg = motionplanning.config.defaultConfig();
+
+verifyGreaterThanOrEqual(testCase, cfg.environment.domainSize, 180);
+verifyGreaterThanOrEqual(testCase, cfg.environment.gridResolution, 200);
+verifyGreaterThan(testCase, cfg.environment.topologyFeatureCount, 0);
+verifyEqual(testCase, cfg.environment.diagonalValleyDepth, 0);
+verifyGreaterThanOrEqual(testCase, cfg.planning.maxNodes, 5000);
 end
 
 function testLowFrequencyTerrainDoesNotCreateLargeKernel(testCase)
@@ -31,6 +44,7 @@ cfg = motionplanning.config.defaultConfig();
 cfg.environment.gridResolution = 30;
 cfg.environment.domainSize = 100;
 cfg.environment.frequency = 0.001;
+cfg.environment.topologyFeatureCount = 8;
 
 terrain = motionplanning.environment.generateVoxelTerrain(cfg.environment);
 

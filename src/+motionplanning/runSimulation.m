@@ -16,7 +16,7 @@ fprintf('Procedural Generation Seed: %d\n', simSeed);
 
 robot = motionplanning.robot.createHexapodRobot(cfg.robot);
 
-fprintf('Generating Voxelized fBm Terrain...\n');
+fprintf('Generating large randomized voxel terrain...\n');
 terrain = motionplanning.environment.generateVoxelTerrain(cfg.environment);
 
 [startNode, goalNode] = resolveEndpoints(cfg, robot, terrain);
@@ -115,6 +115,15 @@ for idx = 1:2:numel(varargin)
             cfg.planning.stepSize = value;
         case 'goalbias'
             cfg.planning.goalBias = value;
+        case 'domainsize'
+            cfg.environment.domainSize = value;
+            cfg.planning.rrtStarGamma = value * 1.5;
+        case 'gridresolution'
+            cfg.environment.gridResolution = value;
+        case 'topologyfeatures'
+            cfg.environment.topologyFeatureCount = value;
+        case 'maxterrainheight'
+            cfg.environment.maxTerrainHeight = value;
         case 'algorithm'
             cfg.planning.algorithm = value;
         case 'planner'

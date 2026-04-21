@@ -39,6 +39,12 @@ Run with a fixed seed:
 main('Seed', 42)
 ```
 
+Run a larger or denser randomized world:
+
+```matlab
+main('DomainSize', 240, 'GridResolution', 280, 'TopologyFeatures', 100)
+```
+
 Run without visualization:
 
 ```matlab
@@ -73,5 +79,6 @@ table(results)
 - Static stability requires the center of mass projection to remain inside both alternating tripod support polygons with a configurable margin.
 - Edge validity samples intermediate states, so a path cannot pass through invalid terrain just because its endpoints are valid.
 - Terrain uses interpolated octave value noise instead of Gaussian convolution, so lowering frequency does not create a huge smoothing kernel.
+- Default terrain is a larger randomized topology with domes, basins, ridges, canyons, mesas, and fault-like steps. The old diagonal valley is disabled by default.
 - RRT nearest-neighbor lookup uses an exact spatial bucket index by default. The original brute-force search remains available by setting `cfg.planning.nearestMode` to another value.
 - This is still a 2-D state-space planner with planning-time pose validation, not a full SE(3) kinodynamic planner.
