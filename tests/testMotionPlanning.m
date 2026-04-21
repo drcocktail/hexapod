@@ -74,6 +74,7 @@ end
 
 function testRRTReturnsValidFlatTerrainPath(testCase)
 cfg = motionplanning.config.defaultConfig();
+cfg.planning.algorithm = 'rrt';
 cfg.planning.maxNodes = 100;
 cfg.planning.stepSize = 4;
 cfg.planning.goalBias = 1;
@@ -85,7 +86,7 @@ terrain = flatTerrain(40, 41, 0);
 startState = [12, 12];
 goalState = [28, 28];
 
-[pathXY, pathZ, info] = motionplanning.planning.planRRT( ...
+[pathXY, pathZ, info] = motionplanning.planning.solvePath( ...
     startState, goalState, terrain, robot, cfg.planning);
 
 verifyEqual(testCase, info.status, 'goal_reached');
@@ -99,6 +100,55 @@ for idx = 1:(size(pathXY, 1) - 1)
         pathXY(idx, :), pathXY(idx + 1, :), terrain, robot, cfg.planning);
     verifyTrue(testCase, edgeValid);
 end
+end
+
+function testInformedRRTStarReturnsValidFlatTerrainPath(testCase)
+cfg = motionplanning.config.defaultConfig();
+cfg.planning.algorithm = 'informed_rrt_star';
+cfg.planning.maxNodes = 120;
+cfg.planning.stepSize = 4;
+cfg.planning.goalBias = 1;
+cfg.planning.goalTolerance = cfg.planning.stepSize;
+cfg.planning.edgeCheckResolution = 1;
+cfg.planning.rewireRadius = 16;
+cfg.planning.solutionCheckInterval = 1;
+
+robot = motionplanning.robot.createHexapodRobot(cfg.robot);
+terrain = flatTerrain(40, 41, 0);
+startState = [12, 12];
+goalState = [28, 28];
+
+[pathXY, pathZ, info] = motionplanning.planning.solvePath( ...
+    startState, goalState, terrain, robot, cfg.planning);
+
+verifyEqual(testCase, info.status, 'goal_reached');
+verifyFalse(testCase, isempty(pathXY));
+verifyEqual(testCase, pathXY(1, :), startState);
+verifyEqual(testCase, pathXY(end, :), goalState);
+verifyEqual(testCase, pathZ, ones(size(pathZ)) * (robot.clearance + robot.bodyHeight / 2), 'AbsTol', 1e-12);
+end
+
+function testBITStarReturnsValidFlatTerrainPath(testCase)
+cfg = motionplanning.config.defaultConfig();
+cfg.planning.algorithm = 'bit_star';
+cfg.planning.edgeCheckResolution = 1;
+cfg.planning.bitBatchSize = 10;
+cfg.planning.bitMaxBatches = 2;
+cfg.planning.bitConnectionRadius = 40;
+
+robot = motionplanning.robot.createHexapodRobot(cfg.robot);
+terrain = flatTerrain(40, 41, 0);
+startState = [12, 12];
+goalState = [28, 28];
+
+[pathXY, pathZ, info] = motionplanning.planning.solvePath( ...
+    startState, goalState, terrain, robot, cfg.planning);
+
+verifyEqual(testCase, info.status, 'goal_reached');
+verifyFalse(testCase, isempty(pathXY));
+verifyEqual(testCase, pathXY(1, :), startState);
+verifyEqual(testCase, pathXY(end, :), goalState);
+verifyEqual(testCase, pathZ, ones(size(pathZ)) * (robot.clearance + robot.bodyHeight / 2), 'AbsTol', 1e-12);
 end
 
 function testSpatialNearestMatchesBruteForce(testCase)

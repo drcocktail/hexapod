@@ -21,7 +21,7 @@ The root `main.m` is only a launcher. The simulator code lives in the `motionpla
 
 - `+environment`: terrain generation, flattening, height queries, local grid windows, domain checks.
 - `+robot`: hexapod dimensions, chassis geometry, terrain-following pose estimates, foot targets, leg IK, tripod stability checks.
-- `+planning`: RRT sampling, steering, spatial nearest-node search, state validation, edge validation, path reconstruction.
+- `+planning`: planner dispatch, RRT, Informed RRT*, BIT*, sampling, steering, spatial nearest-node search, state validation, edge validation, path reconstruction.
 - `+visualization`: terrain/path rendering and robot animation.
 - `+config`: default simulation parameters.
 
@@ -45,6 +45,14 @@ Run without visualization:
 result = main('Seed', 42, 'Render', false);
 ```
 
+Choose a planner:
+
+```matlab
+main('Planner', 'rrt')
+main('Planner', 'informed_rrt_star')
+main('Planner', 'bit_star')
+```
+
 ## Tests
 
 From MATLAB at the repository root:
@@ -57,11 +65,13 @@ table(results)
 
 ## Notes
 
-- The planner is named `planRRT` because it is RRT, not RRT*. It does not currently do cost optimization or rewiring.
+- `cfg.planning.algorithm` selects `rrt`, `informed_rrt_star`, or `bit_star`.
+- Informed RRT* uses an incumbent-cost ellipse after the first solution, parent selection, neighborhood rewiring, and propagated descendant costs.
+- BIT* uses informed sample batches and sorted candidate edges against the same validity/cost model.
 - State validity checks body clearance using chassis center height: `max terrain under body + belly clearance + bodyHeight / 2`.
 - State validity estimates terrain-following pitch/roll during planning and rejects poses above configured orientation limits.
 - Static stability requires the center of mass projection to remain inside both alternating tripod support polygons with a configurable margin.
 - Edge validity samples intermediate states, so a path cannot pass through invalid terrain just because its endpoints are valid.
 - Terrain uses interpolated octave value noise instead of Gaussian convolution, so lowering frequency does not create a huge smoothing kernel.
 - RRT nearest-neighbor lookup uses an exact spatial bucket index by default. The original brute-force search remains available by setting `cfg.planning.nearestMode` to another value.
-- This is still a 2-D state-space planner with planning-time pose validation, not a full SE(3) kinodynamic planner, and it is still RRT rather than RRT*.
+- This is still a 2-D state-space planner with planning-time pose validation, not a full SE(3) kinodynamic planner.

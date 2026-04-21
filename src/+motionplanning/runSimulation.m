@@ -27,8 +27,8 @@ terrain.Z = motionplanning.environment.flattenRegion( ...
 terrain.Z = motionplanning.environment.flattenRegion( ...
     terrain.Z, terrain.X, terrain.Y, goalNode, spawnFlatRadius);
 
-fprintf('Executing RRT Planning with volumetric validation...\n');
-[pathXY, pathZ, plannerInfo] = motionplanning.planning.planRRT( ...
+fprintf('Executing %s planning with volumetric validation...\n', char(cfg.planning.algorithm));
+[pathXY, pathZ, plannerInfo] = motionplanning.planning.solvePath( ...
     startNode, goalNode, terrain, robot, cfg.planning);
 
 if isempty(pathXY)
@@ -115,6 +115,14 @@ for idx = 1:2:numel(varargin)
             cfg.planning.stepSize = value;
         case 'goalbias'
             cfg.planning.goalBias = value;
+        case 'algorithm'
+            cfg.planning.algorithm = value;
+        case 'planner'
+            cfg.planning.algorithm = value;
+        case 'bitbatchsize'
+            cfg.planning.bitBatchSize = value;
+        case 'bitmaxbatches'
+            cfg.planning.bitMaxBatches = value;
         otherwise
             error('motionplanning:config:UnknownOverride', ...
                 'Unknown runSimulation override: %s', varargin{idx});

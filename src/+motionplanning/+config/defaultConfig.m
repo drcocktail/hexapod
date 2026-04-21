@@ -30,6 +30,7 @@ cfg.environment.spawnFlatRadius = cfg.robot.bodyRadius * 1.5;
 cfg.start = [];
 cfg.goal = [];
 
+cfg.planning.algorithm = 'informed_rrt_star';
 cfg.planning.maxNodes = 1500;
 cfg.planning.stepSize = 3.0;
 cfg.planning.goalBias = 0.15;
@@ -37,6 +38,15 @@ cfg.planning.goalTolerance = cfg.planning.stepSize;
 cfg.planning.edgeCheckResolution = 1.0;
 cfg.planning.nearestMode = 'spatial_hash';
 cfg.planning.spatialCellSize = cfg.planning.stepSize * 4;
+cfg.planning.rewireRadius = cfg.planning.stepSize * 6;
+cfg.planning.rrtStarGamma = cfg.environment.domainSize * 1.5;
+cfg.planning.solutionCheckInterval = 10;
+cfg.planning.distanceWeight = 1.0;
+cfg.planning.verticalWeight = 0.25;
+cfg.planning.roughnessWeight = 0.1;
+cfg.planning.bitBatchSize = 120;
+cfg.planning.bitMaxBatches = 20;
+cfg.planning.bitConnectionRadius = cfg.planning.stepSize * 7;
 
 cfg.visualization.enabled = true;
 cfg.visualization.animate = true;
