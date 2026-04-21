@@ -1,0 +1,98 @@
+function [path, pathZ, info] = planRRT(startState, goalState, terrain, robot, options)
+%PLANRRT Build an RRT under volumetric body and leg reachability checks.
+
+capacity = options.maxNodes + 2;
+nodes = zeros(capacity, 2);
+nodesZ = NaN(capacity, 1);
+parents = zeros(capacity, 1);
+
+info = struct( ...
+    'status', 'not_started', ...
+    'iterations', 0, ...
+    'nodeCount', 0, ...
+    'failureReason', '', ...
+    'startValid', false, ...
+    'goalValid', false);
+
+initialYaw = atan2(goalState(2) - startState(2), goalState(1) - startState(1));
+[startValid, startZ, startInfo] = motionplanning.planning.isStateValid(startState, terrain, robot, initialYaw);
+[goalValid, goalZ, goalInfo] = motionplanning.planning.isStateValid(goalState, terrain, robot, initialYaw);
+
+info.startValid = startValid;
+info.goalValid = goalValid;
+if ~startValid
+    path = [];
+    pathZ = [];
+    info.status = 'invalid_start';
+    info.failureReason = startInfo.reason;
+    return;
+end
+if ~goalValid
+    path = [];
+    pathZ = [];
+    info.status = 'invalid_goal';
+    info.failureReason = goalInfo.reason;
+    return;
+end
+
+nodes(1, :) = startState;
+nodesZ(1) = startZ;
+nodeCount = 1;
+goalIdx = NaN;
+
+for iteration = 1:options.maxNodes
+    info.iterations = iteration;
+    randomState = motionplanning.planning.sampleState(goalState, terrain, options);
+    nearestIdx = motionplanning.planning.nearestNode(nodes, nodeCount, randomState);
+    newState = motionplanning.planning.steer(nodes(nearestIdx, :), randomState, options.stepSize);
+
+    if norm(newState - nodes(nearestIdx, :)) < eps
+        continue;
+    end
+
+    [edgeValid, zSamples, ~, failReason] = motionplanning.planning.isEdgeValid( ...
+        nodes(nearestIdx, :), newState, terrain, robot, options);
+    if ~edgeValid
+        info.failureReason = failReason;
+        continue;
+    end
+
+    nodeCount = nodeCount + 1;
+    if nodeCount > capacity
+        info.status = 'capacity_exhausted';
+        break;
+    end
+
+    nodes(nodeCount, :) = newState;
+    nodesZ(nodeCount) = zSamples(end);
+    parents(nodeCount) = nearestIdx;
+
+    if norm(newState - goalState) <= options.goalTolerance
+        [goalEdgeValid, goalZSamples, ~, failReason] = motionplanning.planning.isEdgeValid( ...
+            newState, goalState, terrain, robot, options);
+        if goalEdgeValid
+            nodeCount = nodeCount + 1;
+            nodes(nodeCount, :) = goalState;
+            nodesZ(nodeCount) = goalZSamples(end);
+            parents(nodeCount) = nodeCount - 1;
+            goalIdx = nodeCount;
+            info.status = 'goal_reached';
+            break;
+        end
+        info.failureReason = failReason;
+    end
+end
+
+info.nodeCount = nodeCount;
+if isnan(goalIdx)
+    path = [];
+    pathZ = [];
+    if strcmp(info.status, 'not_started')
+        info.status = 'max_nodes_exhausted';
+    end
+    return;
+end
+
+[path, pathZ] = motionplanning.planning.reconstructPath(nodes, nodesZ, parents, goalIdx);
+pathZ(end) = goalZ;
+end
