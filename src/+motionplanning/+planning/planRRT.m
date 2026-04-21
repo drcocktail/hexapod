@@ -39,11 +39,28 @@ nodes(1, :) = startState;
 nodesZ(1) = startZ;
 nodeCount = 1;
 goalIdx = NaN;
+useSpatialIndex = isfield(options, 'nearestMode') && strcmpi(options.nearestMode, 'spatial_hash');
+if useSpatialIndex
+    if isfield(options, 'spatialCellSize')
+        spatialCellSize = options.spatialCellSize;
+    else
+        spatialCellSize = options.stepSize * 4;
+    end
+    spatialIndex = motionplanning.planning.createSpatialIndex(terrain, spatialCellSize);
+    spatialIndex = motionplanning.planning.insertSpatialNode(spatialIndex, 1, startState);
+else
+    spatialIndex = [];
+end
 
 for iteration = 1:options.maxNodes
     info.iterations = iteration;
     randomState = motionplanning.planning.sampleState(goalState, terrain, options);
-    nearestIdx = motionplanning.planning.nearestNode(nodes, nodeCount, randomState);
+    if useSpatialIndex
+        nearestIdx = motionplanning.planning.nearestNodeSpatial( ...
+            spatialIndex, nodes, nodeCount, randomState);
+    else
+        nearestIdx = motionplanning.planning.nearestNode(nodes, nodeCount, randomState);
+    end
     newState = motionplanning.planning.steer(nodes(nearestIdx, :), randomState, options.stepSize);
 
     if norm(newState - nodes(nearestIdx, :)) < eps
@@ -66,6 +83,9 @@ for iteration = 1:options.maxNodes
     nodes(nodeCount, :) = newState;
     nodesZ(nodeCount) = zSamples(end);
     parents(nodeCount) = nearestIdx;
+    if useSpatialIndex
+        spatialIndex = motionplanning.planning.insertSpatialNode(spatialIndex, nodeCount, newState);
+    end
 
     if norm(newState - goalState) <= options.goalTolerance
         [goalEdgeValid, goalZSamples, ~, failReason] = motionplanning.planning.isEdgeValid( ...
@@ -75,6 +95,9 @@ for iteration = 1:options.maxNodes
             nodes(nodeCount, :) = goalState;
             nodesZ(nodeCount) = goalZSamples(end);
             parents(nodeCount) = nodeCount - 1;
+            if useSpatialIndex
+                spatialIndex = motionplanning.planning.insertSpatialNode(spatialIndex, nodeCount, goalState);
+            end
             goalIdx = nodeCount;
             info.status = 'goal_reached';
             break;

@@ -12,10 +12,10 @@ zContinuous = zeros(resolution, resolution);
 frequency = options.frequency;
 amplitude = options.amplitude;
 
-for octave = 1:options.octaves %#ok<NASGU>
-    noiseGrid = rand(resolution, resolution);
-    smoothed = motionplanning.utils.gaussianSmooth2D(noiseGrid, 1 / frequency);
-    zContinuous = zContinuous + smoothed * amplitude;
+for octave = 1:options.octaves
+    octaveNoise = motionplanning.utils.valueNoise2D( ...
+        X, Y, frequency, terrainBounds(domainSize), octave);
+    zContinuous = zContinuous + octaveNoise * amplitude;
 
     amplitude = amplitude * options.persistence;
     frequency = frequency * 2;
@@ -37,5 +37,11 @@ terrain = struct( ...
     'minY', 0, ...
     'maxY', domainSize, ...
     'resolution', resolution, ...
+    'xVec', xVec, ...
+    'yVec', yVec, ...
     'gridSpacing', domainSize / max(resolution - 1, 1));
+end
+
+function bounds = terrainBounds(domainSize)
+bounds = struct('minX', 0, 'maxX', domainSize, 'minY', 0, 'maxY', domainSize);
 end

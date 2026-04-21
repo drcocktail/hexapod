@@ -1,7 +1,7 @@
-function [isReachable, legInfo] = checkLegReachability(bodyPose, yaw, terrain, robot)
+function [isReachable, legInfo] = checkLegReachability(bodyPose, yaw, pitch, roll, terrain, robot)
 %CHECKLEGREACHABILITY Validate all six nominal footholds for a body pose.
 
-R = motionplanning.utils.rotationMatrix(yaw, 0, 0);
+R = motionplanning.utils.rotationMatrix(yaw, pitch, roll);
 [feet, feetInside] = motionplanning.robot.footTargets(bodyPose(1:2), yaw, terrain, robot, 'planning');
 
 valid = false(6, 1);

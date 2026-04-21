@@ -11,8 +11,11 @@ bodyZ = NaN;
 info = struct( ...
     'reason', '', ...
     'bodyZ', NaN, ...
+    'pitch', NaN, ...
+    'roll', NaN, ...
     'maxTerrainUnderBody', NaN, ...
-    'legInfo', []);
+    'legInfo', [], ...
+    'stabilityInfo', []);
 
 bodyInside = x - robot.bodyRadius >= terrain.minX && ...
     x + robot.bodyRadius <= terrain.maxX && ...
@@ -24,8 +27,7 @@ if ~bodyInside
     return;
 end
 
-idxX = terrain.X(1, :) >= (x - robot.bodyRadius) & terrain.X(1, :) <= (x + robot.bodyRadius);
-idxY = terrain.Y(:, 1) >= (y - robot.bodyRadius) & terrain.Y(:, 1) <= (y + robot.bodyRadius);
+[idxX, idxY] = motionplanning.environment.localGridWindow(x, y, robot.bodyRadius, terrain);
 localX = terrain.X(idxY, idxX);
 localY = terrain.Y(idxY, idxX);
 localZ = terrain.Z(idxY, idxX);
@@ -45,15 +47,44 @@ if isnan(maxTerrainUnderBody)
 end
 
 bodyZ = maxTerrainUnderBody + robot.clearance + robot.bodyHeight / 2;
-[legsReachable, legInfo] = motionplanning.robot.checkLegReachability([x, y, bodyZ], yaw, terrain, robot);
+[pitch, roll] = motionplanning.robot.estimateBodyOrientation([x, y], yaw, terrain, robot);
+if isnan(pitch) || isnan(roll)
+    isValid = false;
+    info.reason = 'orientation_query_outside_domain';
+    return;
+end
+if abs(pitch) > robot.maxPitch || abs(roll) > robot.maxRoll
+    isValid = false;
+    info.reason = 'body_orientation_limit';
+    info.bodyZ = bodyZ;
+    info.pitch = pitch;
+    info.roll = roll;
+    return;
+end
 
-isValid = legsReachable;
+[legsReachable, legInfo] = motionplanning.robot.checkLegReachability( ...
+    [x, y, bodyZ], yaw, pitch, roll, terrain, robot);
+
 info.bodyZ = bodyZ;
+info.pitch = pitch;
+info.roll = roll;
 info.maxTerrainUnderBody = maxTerrainUnderBody;
 info.legInfo = legInfo;
-if isValid
-    info.reason = 'valid';
-else
+if ~legsReachable
+    isValid = false;
     info.reason = 'leg_unreachable';
+    return;
 end
+
+[stable, stabilityInfo] = motionplanning.robot.checkStaticStability( ...
+    legInfo.feet, [x, y], robot.stabilityMargin);
+info.stabilityInfo = stabilityInfo;
+if ~stable
+    isValid = false;
+    info.reason = 'unstable_tripod_support';
+    return;
+end
+
+isValid = true;
+info.reason = 'valid';
 end

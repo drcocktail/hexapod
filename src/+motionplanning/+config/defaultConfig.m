@@ -11,6 +11,9 @@ cfg.robot.L_coxa = 1.5;
 cfg.robot.L_femur = 4.5;
 cfg.robot.L_tibia = 5.5;
 cfg.robot.maxStepZ = 6.0;
+cfg.robot.maxPitch = 25 * pi / 180;
+cfg.robot.maxRoll = 25 * pi / 180;
+cfg.robot.stabilityMargin = 0.25;
 
 cfg.environment.gridResolution = 80;
 cfg.environment.domainSize = 60;
@@ -32,6 +35,8 @@ cfg.planning.stepSize = 3.0;
 cfg.planning.goalBias = 0.15;
 cfg.planning.goalTolerance = cfg.planning.stepSize;
 cfg.planning.edgeCheckResolution = 1.0;
+cfg.planning.nearestMode = 'spatial_hash';
+cfg.planning.spatialCellSize = cfg.planning.stepSize * 4;
 
 cfg.visualization.enabled = true;
 cfg.visualization.animate = true;

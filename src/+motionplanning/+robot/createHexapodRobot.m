@@ -8,6 +8,9 @@ robot.L_coxa = options.L_coxa;
 robot.L_femur = options.L_femur;
 robot.L_tibia = options.L_tibia;
 robot.maxStepZ = options.maxStepZ;
+robot.maxPitch = options.maxPitch;
+robot.maxRoll = options.maxRoll;
+robot.stabilityMargin = options.stabilityMargin;
 
 robot.baseAngles = linspace(0, 2 * pi, 7);
 robot.baseAngles(end) = [];
