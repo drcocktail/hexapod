@@ -1,25 +1,23 @@
 function [pitch, roll] = estimateBodyOrientation(centerXY, yaw, terrain, robot)
 %ESTIMATEBODYORIENTATION Estimate terrain-following chassis pitch and roll.
 
-forward = [cos(yaw), sin(yaw)];
-left = [cos(yaw + pi / 2), sin(yaw + pi / 2)];
+cw = cos(yaw);
+sw = sin(yaw);
+r  = robot.bodyRadius;
 
-frontXY = centerXY + robot.bodyRadius * forward;
-backXY = centerXY - robot.bodyRadius * forward;
-leftXY = centerXY + robot.bodyRadius * left;
-rightXY = centerXY - robot.bodyRadius * left;
+% Batch all four terrain probes into a single getTerrainHeight call.
+% Row order: front, back, left, right.
+px = centerXY(1) + r * [ cw; -cw; -sw;  sw];
+py = centerXY(2) + r * [ sw; -sw;  cw; -cw];
 
-zFwd = motionplanning.environment.getTerrainHeight(frontXY(1), frontXY(2), terrain, 'nan');
-zBck = motionplanning.environment.getTerrainHeight(backXY(1), backXY(2), terrain, 'nan');
-zLft = motionplanning.environment.getTerrainHeight(leftXY(1), leftXY(2), terrain, 'nan');
-zRgt = motionplanning.environment.getTerrainHeight(rightXY(1), rightXY(2), terrain, 'nan');
+z = motionplanning.environment.getTerrainHeight(px, py, terrain, 'nan');
 
-if any(isnan([zFwd, zBck, zLft, zRgt]))
+if any(isnan(z))
     pitch = NaN;
-    roll = NaN;
+    roll  = NaN;
     return;
 end
 
-pitch = atan2(zFwd - zBck, 2 * robot.bodyRadius) * 0.5;
-roll = atan2(zRgt - zLft, 2 * robot.bodyRadius) * 0.5;
+pitch = atan2(z(1) - z(2), 2 * r) * 0.5;   % front vs back
+roll  = atan2(z(4) - z(3), 2 * r) * 0.5;   % right vs left
 end

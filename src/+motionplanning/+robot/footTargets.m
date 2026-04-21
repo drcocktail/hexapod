@@ -11,15 +11,13 @@ else
     targetRadius = robot.nominalFootRadius;
 end
 
-feet = zeros(6, 3);
-inside = true(6, 1);
-for leg = 1:6
-    heading = yaw + robot.baseAngles(leg);
-    footX = centerXY(1) + targetRadius * cos(heading);
-    footY = centerXY(2) + targetRadius * sin(heading);
-    footZ = motionplanning.environment.getTerrainHeight(footX, footY, terrain, 'nan');
+% Vectorised: compute all six foot positions in one shot then do a single
+% batched terrain query instead of six individual getTerrainHeight calls.
+headings = yaw + robot.baseAngles(:);          % 6×1
+footX    = centerXY(1) + targetRadius * cos(headings);
+footY    = centerXY(2) + targetRadius * sin(headings);
+footZ    = motionplanning.environment.getTerrainHeight(footX, footY, terrain, 'nan');
 
-    feet(leg, :) = [footX, footY, footZ];
-    inside(leg) = ~isnan(footZ);
-end
+feet   = [footX(:), footY(:), footZ(:)];      % 6×3
+inside = ~isnan(footZ(:));                    % 6×1
 end

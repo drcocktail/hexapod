@@ -7,8 +7,8 @@ if spatialIndex.buckets.Count == 0
 end
 
 [~, baseX, baseY] = motionplanning.planning.spatialBucketKey(spatialIndex, queryState);
-bestDistSq = Inf;
-nearestIdx = 1;
+bestDistSq     = Inf;
+nearestIdx     = 1;
 foundCandidate = false;
 
 for ring = 0:spatialIndex.maxRing
@@ -19,8 +19,8 @@ for ring = 0:spatialIndex.maxRing
         end
         distSq = sum((nodes(idx, :) - queryState) .^ 2);
         if distSq < bestDistSq
-            bestDistSq = distSq;
-            nearestIdx = idx;
+            bestDistSq     = distSq;
+            nearestIdx     = idx;
             foundCandidate = true;
         end
     end
@@ -54,7 +54,7 @@ end
 end
 
 function values = bucketValues(spatialIndex, bx, by)
-key = sprintf('%d:%d', bx, by);
+key = bx * 10000 + by;
 if isKey(spatialIndex.buckets, key)
     values = spatialIndex.buckets(key);
 else
@@ -64,9 +64,9 @@ end
 
 function lowerBound = distanceToOutsideSearchWindow(spatialIndex, queryState, baseX, baseY, ring)
 cellSize = spatialIndex.cellSize;
-xMin = spatialIndex.minX + (baseX - ring) * cellSize;
+xMin = spatialIndex.minX + (baseX - ring)     * cellSize;
 xMax = spatialIndex.minX + (baseX + ring + 1) * cellSize;
-yMin = spatialIndex.minY + (baseY - ring) * cellSize;
+yMin = spatialIndex.minY + (baseY - ring)     * cellSize;
 yMax = spatialIndex.minY + (baseY + ring + 1) * cellSize;
 
 lowerBound = min([ ...

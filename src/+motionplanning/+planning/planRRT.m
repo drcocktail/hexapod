@@ -52,7 +52,11 @@ else
     spatialIndex = [];
 end
 
-for iteration = 1:options.maxNodes
+maxIterations = options.maxNodes * 20;
+for iteration = 1:maxIterations
+    if nodeCount >= options.maxNodes
+        break;
+    end
     info.iterations = iteration;
     randomState = motionplanning.planning.sampleState(goalState, terrain, options);
     if useSpatialIndex

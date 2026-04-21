@@ -33,7 +33,14 @@ bestCost = Inf;
 
 [spatialIndex, useSpatialIndex] = createIndexIfNeeded(terrain, options, startState);
 
-for iteration = 1:options.maxNodes
+maxIterations = options.maxNodes * 20; % Allow more samples to reach max nodes
+fprintf('Solver started. Goal is to reach %d nodes (max limit: %d iterations).\n', options.maxNodes, maxIterations);
+diagnostics = struct('baseEdgeFailed', 0, 'parentFailed', 0, 'validNodes', 0, 'lastLogTime', tic);
+
+for iteration = 1:maxIterations
+    if nodeCount >= options.maxNodes
+        break;
+    end
     info.iterations = iteration;
     randomState = motionplanning.planning.sampleInformedState( ...
         startState, goalState, bestCost, terrain, options);
@@ -44,6 +51,19 @@ for iteration = 1:options.maxNodes
         continue;
     end
 
+    [~, ~, baseValid, failReasonBase] = motionplanning.planning.edgeCost( ...
+        nodes(nearestIdx, :), newState, terrain, robot, options);
+    if ~baseValid
+        diagnostics.baseEdgeFailed = diagnostics.baseEdgeFailed + 1;
+        info.failureReason = failReasonBase;
+        if toc(diagnostics.lastLogTime) > 3.0
+            fprintf('  [Log] Iter %d: Base edge rejected (%s). Nodes: %d | Fails - Base: %d, Parent: %d\n', ...
+                iteration, failReasonBase, nodeCount, diagnostics.baseEdgeFailed, diagnostics.parentFailed);
+            diagnostics.lastLogTime = tic;
+        end
+        continue;
+    end
+
     radius = motionplanning.planning.rrtStarRadius(options, nodeCount);
     nearIdx = nearbyTreeNodes(nodes, nodeCount, newState, radius, spatialIndex, useSpatialIndex);
     candidateParents = unique([nearestIdx; nearIdx(:)]);
@@ -51,8 +71,18 @@ for iteration = 1:options.maxNodes
     [bestParent, bestParentCost, bestParentEdgeCost, newZ, failReason] = chooseBestParent( ...
         candidateParents, newState, nodes, costs, bestCost, goalState, terrain, robot, options);
     if isnan(bestParent)
+        diagnostics.parentFailed = diagnostics.parentFailed + 1;
         info.failureReason = failReason;
+        if toc(diagnostics.lastLogTime) > 3.0
+            fprintf('  [Log] Iter %d: Choose parent rejected (%s). Nodes: %d | Fails - Base: %d, Parent: %d\n', ...
+                iteration, failReason, nodeCount, diagnostics.baseEdgeFailed, diagnostics.parentFailed);
+            diagnostics.lastLogTime = tic;
+        end
         continue;
+    end
+    diagnostics.validNodes = diagnostics.validNodes + 1;
+    if mod(diagnostics.validNodes, 200) == 0
+        fprintf('  [Progress] Iter %d: Tree reached %d nodes. Best cost: %.2f\n', iteration, nodeCount, bestCost);
     end
 
     if nodeCount + 1 > capacity
@@ -150,10 +180,11 @@ bestEdgeCost = Inf;
 newZ = NaN;
 failReason = '';
 
+hNew2Goal = norm(goalState - newState);   % constant across all candidates — compute once
+
 for parentIdx = candidateParents(:)'
     lowerBound = costs(parentIdx) + ...
-        motionplanning.planning.heuristicCost(nodes(parentIdx, :), newState) + ...
-        motionplanning.planning.heuristicCost(newState, goalState);
+        norm(nodes(parentIdx, :) - newState) + hNew2Goal;
     if lowerBound >= incumbentCost
         continue;
     end
@@ -177,14 +208,31 @@ end
 
 function [parents, costs, edgeCosts] = rewireNeighbors( ...
     newIdx, nearIdx, nodes, parents, costs, edgeCosts, incumbentCost, terrain, robot, options)
-for neighborIdx = nearIdx(:)'
-    if neighborIdx == 1 || neighborIdx == newIdx || parents(newIdx) == neighborIdx || ...
-            isAncestor(neighborIdx, newIdx, parents)
-        continue;
-    end
 
-    lowerBound = costs(newIdx) + motionplanning.planning.heuristicCost(nodes(newIdx, :), nodes(neighborIdx, :));
-    if lowerBound >= min(costs(neighborIdx), incumbentCost)
+% Cheap structural filters first.
+candidates = nearIdx(:)';
+candidates = candidates( ...
+    candidates ~= 1 & ...
+    candidates ~= newIdx & ...
+    parents(newIdx) ~= candidates);
+
+if isempty(candidates)
+    return;
+end
+
+% Vectorised lower-bound pre-filter — eliminates most candidates without
+% any edge validity check or isAncestor traversal.
+newNode        = nodes(newIdx, :);
+candidateNodes = nodes(candidates, :);
+dists          = sqrt(sum((candidateNodes - newNode) .^ 2, 2));
+lbs            = costs(newIdx) + dists(:);
+thresholds     = min(costs(candidates(:)), incumbentCost);
+% Keep candidates where the same-orientation mask passes.
+passMask       = reshape(lbs < thresholds, 1, []);
+candidates     = candidates(passMask);
+
+for neighborIdx = candidates
+    if isAncestor(neighborIdx, newIdx, parents)
         continue;
     end
 
@@ -196,10 +244,10 @@ for neighborIdx = nearIdx(:)'
 
     candidateCost = costs(newIdx) + candidateEdgeCost;
     if candidateCost < costs(neighborIdx)
-        parents(neighborIdx) = newIdx;
+        parents(neighborIdx)   = newIdx;
         edgeCosts(neighborIdx) = candidateEdgeCost;
-        costs(neighborIdx) = candidateCost;
-        costs = motionplanning.planning.propagateCosts(parents, edgeCosts, costs, neighborIdx, numel(costs));
+        costs(neighborIdx)     = candidateCost;
+        costs = motionplanning.planning.propagateCosts(parents, edgeCosts, costs, neighborIdx, newIdx);
     end
 end
 end

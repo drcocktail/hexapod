@@ -147,36 +147,53 @@ end
 end
 
 function samples = pruneSamples(samples, goalState, bestCost)
-if ~isfinite(bestCost)
+if ~isfinite(bestCost) || isempty(samples)
     return;
 end
-
-keep = false(size(samples, 1), 1);
-for idx = 1:size(samples, 1)
-    keep(idx) = motionplanning.planning.heuristicCost(samples(idx, :), goalState) < bestCost;
-end
-samples = samples(keep, :);
+dists   = sqrt(sum((samples - goalState) .^ 2, 2));
+samples = samples(dists < bestCost, :);
 end
 
 function candidateEdges = buildCandidateEdges(nodes, costs, nodeCount, samples, goalState, bestCost, options)
-candidateEdges = zeros(0, 3);
-radius = options.bitConnectionRadius;
+radius   = options.bitConnectionRadius;
+nSamples = size(samples, 1);
+
+% Pre-allocate worst-case; trim at the end.
+maxEdges = nodeCount * nSamples;
+edgeLB   = zeros(maxEdges, 1);
+edgeFrom = zeros(maxEdges, 1);
+edgeTo   = zeros(maxEdges, 1);
+edgeCount = 0;
+
+% Cache per-sample goal distances to avoid recomputing inside the vertex loop.
+goalDists = sqrt(sum((samples - goalState) .^ 2, 2));
+
 for vertexIdx = 1:nodeCount
     if ~isfinite(costs(vertexIdx))
         continue;
     end
 
-    deltas = samples - nodes(vertexIdx, :);
+    deltas    = samples - nodes(vertexIdx, :);
     distances = sqrt(sum(deltas .^ 2, 2));
-    sampleIdx = find(distances <= radius);
-    for idx = sampleIdx(:)'
-        lowerBound = costs(vertexIdx) + distances(idx) + ...
-            motionplanning.planning.heuristicCost(samples(idx, :), goalState);
-        if lowerBound < bestCost
-            candidateEdges(end + 1, :) = [lowerBound, vertexIdx, idx]; %#ok<AGROW>
-        end
+    nearMask  = distances <= radius;
+    if ~any(nearMask)
+        continue;
+    end
+
+    lbs      = costs(vertexIdx) + distances(nearMask) + goalDists(nearMask);
+    validMask = lbs < bestCost;
+    nearIdx   = find(nearMask);
+    validIdx  = nearIdx(validMask);
+    n         = numel(validIdx);
+    if n > 0
+        edgeLB(edgeCount + 1 : edgeCount + n)   = lbs(validMask);
+        edgeFrom(edgeCount + 1 : edgeCount + n) = vertexIdx;
+        edgeTo(edgeCount + 1 : edgeCount + n)   = validIdx;
+        edgeCount = edgeCount + n;
     end
 end
+
+candidateEdges = [edgeLB(1:edgeCount), edgeFrom(1:edgeCount), edgeTo(1:edgeCount)];
 end
 
 function [goalIdx, bestCost, nodeCount, nodes, nodesZ, parents, costs, edgeCosts, info] = ...
@@ -249,16 +266,34 @@ if ~isnan(goalIdx)
     end
 end
 
-changed = true;
-while changed
-    changed = false;
-    for idx = 2:nodeCount
-        if keep(idx) && parents(idx) > 0 && ~keep(parents(idx))
-            keep(idx) = false;
-            changed = true;
-        end
+% Propagate cost-pruning down the tree: a child of a pruned node must also
+% be pruned.  Build a children list once (O(n)) then BFS from the root so
+% the whole pass is O(n) instead of the O(n²) while-changed loop.
+childLists = cell(nodeCount, 1);
+for idx = 2:nodeCount
+    p = parents(idx);
+    if p >= 1 && p <= nodeCount
+        childLists{p}(end + 1) = idx;
     end
 end
+reachable    = false(nodeCount, 1);
+bfsQueue     = zeros(nodeCount, 1);
+bfsQueue(1)  = 1;
+bfsHead      = 1;
+bfsTail      = 1;
+while bfsHead <= bfsTail
+    curr    = bfsQueue(bfsHead);
+    bfsHead = bfsHead + 1;
+    if ~keep(curr)
+        continue;
+    end
+    reachable(curr) = true;
+    for c = childLists{curr}
+        bfsTail             = bfsTail + 1;
+        bfsQueue(bfsTail)   = c;
+    end
+end
+keep = keep & reachable;
 
 oldToNew = zeros(nodeCount, 1);
 newIdx = find(keep);
