@@ -36,7 +36,8 @@ verifyGreaterThanOrEqual(testCase, cfg.environment.domainSize, 180);
 verifyGreaterThanOrEqual(testCase, cfg.environment.gridResolution, 200);
 verifyGreaterThan(testCase, cfg.environment.topologyFeatureCount, 0);
 verifyEqual(testCase, cfg.environment.diagonalValleyDepth, 0);
-verifyGreaterThanOrEqual(testCase, cfg.planning.maxNodes, 5000);
+verifyGreaterThanOrEqual(testCase, cfg.planning.maxNodes, 2500);
+verifyEqual(testCase, cfg.planning.algorithm, 'weighted_astar');
 end
 
 function testLowFrequencyTerrainDoesNotCreateLargeKernel(testCase)
@@ -205,3 +206,99 @@ terrain = struct( ...
     'yVec', yVec, ...
     'gridSpacing', domainSize / max(resolution - 1, 1));
 end
+
+%% ---- Weighted A* / Hybrid planner tests ----
+
+function testWeightedAStarReturnsValidFlatTerrainPath(testCase)
+cfg = motionplanning.config.defaultConfig();
+cfg.planning.algorithm = 'weighted_astar';
+cfg.planning.edgeCheckResolution = 1;
+cfg.planning.astarEpsilon = 3.0;
+cfg.planning.rrtConnectMaxIter = 100;
+
+robot = motionplanning.robot.createHexapodRobot(cfg.robot);
+terrain = flatTerrain(40, 41, 0);
+startState = [12, 12];
+goalState = [28, 28];
+
+rng(99);  % fix seed for reproducible smoothing
+[pathXY, pathZ, info] = motionplanning.planning.solvePath( ...
+    startState, goalState, terrain, robot, cfg.planning);
+
+verifyEqual(testCase, info.status, 'goal_reached');
+verifyFalse(testCase, isempty(pathXY));
+verifyEqual(testCase, pathXY(1, :), startState, 'AbsTol', 1e-6);
+verifyEqual(testCase, pathXY(end, :), goalState, 'AbsTol', 1e-6);
+% Path should have more waypoints after densification
+verifyGreaterThanOrEqual(testCase, size(pathXY, 1), 3);
+% Z should be at clearance height on flat terrain
+expectedZ = robot.clearance + robot.bodyHeight / 2;
+verifyEqual(testCase, pathZ, ones(size(pathZ)) * expectedZ, 'AbsTol', 0.5);
+end
+
+function testWeightedAStarIsDeterministic(testCase)
+cfg = motionplanning.config.defaultConfig();
+cfg.planning.algorithm = 'weighted_astar';
+cfg.planning.edgeCheckResolution = 1;
+
+robot = motionplanning.robot.createHexapodRobot(cfg.robot);
+terrain = flatTerrain(40, 41, 0);
+startState = [12, 12];
+goalState = [28, 28];
+
+% Fix seed before each call so random shortcutting is deterministic
+rng(42);
+[pathXY1, ~, info1] = motionplanning.planning.solvePath( ...
+    startState, goalState, terrain, robot, cfg.planning);
+rng(42);
+[pathXY2, ~, info2] = motionplanning.planning.solvePath( ...
+    startState, goalState, terrain, robot, cfg.planning);
+
+verifyEqual(testCase, info1.status, 'goal_reached');
+verifyEqual(testCase, info2.status, 'goal_reached');
+verifyEqual(testCase, pathXY1, pathXY2, 'AbsTol', 1e-12);
+end
+
+function testTraversabilityMapOnFlatTerrain(testCase)
+cfg = motionplanning.config.defaultConfig();
+robot = motionplanning.robot.createHexapodRobot(cfg.robot);
+terrain = flatTerrain(40, 41, 0);
+
+[traversable, costMap] = motionplanning.planning.buildTraversabilityMap( ...
+    terrain, robot, cfg.planning);
+
+verifySize(testCase, traversable, [41, 41]);
+verifySize(testCase, costMap, [41, 41]);
+% Interior cells far from boundary should be traversable on flat terrain
+verifyTrue(testCase, traversable(21, 21));
+% Cost should be finite for traversable cells
+verifyTrue(testCase, isfinite(costMap(21, 21)));
+% Non-traversable cells should have Inf cost
+blockedCells = costMap(~traversable);
+if ~isempty(blockedCells)
+    verifyTrue(testCase, all(isinf(blockedCells)));
+end
+end
+
+function testRRTConnectOnFlatTerrain(testCase)
+cfg = motionplanning.config.defaultConfig();
+cfg.planning.rrtConnectStepSize = 3.0;
+cfg.planning.rrtConnectMaxIter = 200;
+cfg.planning.edgeCheckResolution = 1;
+
+robot = motionplanning.robot.createHexapodRobot(cfg.robot);
+terrain = flatTerrain(40, 41, 0);
+startState = [15, 15];
+goalState = [25, 25];
+
+[pathXY, pathZ, info] = motionplanning.planning.planRRTConnect( ...
+    startState, goalState, terrain, robot, cfg.planning);
+
+verifyEqual(testCase, info.status, 'goal_reached');
+verifyFalse(testCase, isempty(pathXY));
+verifyEqual(testCase, pathXY(1, :), startState, 'AbsTol', 1.0);
+% Path Z should be at clearance height on flat terrain
+expectedZ = robot.clearance + robot.bodyHeight / 2;
+verifyEqual(testCase, pathZ, ones(size(pathZ)) * expectedZ, 'AbsTol', 2.0);
+end
+

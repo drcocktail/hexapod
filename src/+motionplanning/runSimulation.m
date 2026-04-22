@@ -132,6 +132,16 @@ for idx = 1:2:numel(varargin)
             cfg.planning.bitBatchSize = value;
         case 'bitmaxbatches'
             cfg.planning.bitMaxBatches = value;
+        case 'astarepsilon'
+            cfg.planning.astarEpsilon = value;
+        case 'astarslopeweight'
+            cfg.planning.astarSlopeWeight = value;
+        case 'astarmaxslope'
+            cfg.planning.astarMaxSlope = value;
+        case 'rrtconnectstepsize'
+            cfg.planning.rrtConnectStepSize = value;
+        case 'rrtconnectmaxiter'
+            cfg.planning.rrtConnectMaxIter = value;
         otherwise
             error('motionplanning:config:UnknownOverride', ...
                 'Unknown runSimulation override: %s', varargin{idx});

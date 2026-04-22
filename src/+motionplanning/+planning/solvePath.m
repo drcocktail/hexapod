@@ -8,6 +8,8 @@ else
 end
 
 switch algorithm
+    case {'weighted_astar', 'wastar', 'hybrid', 'fast'}
+        [path, pathZ, info] = motionplanning.planning.planWeightedAStar(startState, goalState, terrain, robot, options);
     case 'rrt'
         [path, pathZ, info] = motionplanning.planning.planRRT(startState, goalState, terrain, robot, options);
     case {'informed_rrt_star', 'informedrrtstar', 'irrtstar'}
